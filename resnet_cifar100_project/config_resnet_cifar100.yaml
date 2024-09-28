@@ -1,0 +1,32 @@
+model:
+  name: "resnet18"
+  num_classes: 100
+
+optimizer:
+  type: "Adam"
+  lr: 0.001
+  weight_decay: 0.0005
+
+# train:
+#   batch_size: 128
+#   epochs: 50
+#   device: "cuda"
+#   save_every: 10  # Save checkpoint every 10 epochs
+
+train:
+  batch_size: 128
+  epochs: 50
+  device: "cpu"  # "cuda" 대신 "cpu"로 변경
+  save_every: 50
+
+
+data:
+  root: "./data"
+  num_workers: 4
+  augmentations:
+    - "RandomCrop"
+    - "RandomHorizontalFlip"
+
+logging:
+  log_dir: "./logs"
+  log_interval: 100
