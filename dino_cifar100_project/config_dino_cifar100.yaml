@@ -1,30 +1,32 @@
 model:
   name: "dino_vit"
-  hidden_dim: 256            # 경량화를 위한 hidden dimension 감소
-  num_heads: 4               # Multi-head attention에서의 head 수 감소
-  depth: 8                   # Transformer 블록의 층 수를 감소시켜 경량화
-  patch_size: 4              # CIFAR-100은 이미지가 작으므로 작은 패치 크기 사용
+  hidden_dim: 384            # 경량화를 위한 hidden dimension 감소 256
+  num_heads: 6               # Multi-head attention에서의 head 수 감소 4
+  depth: 12                   # Transformer 블록의 층 수를 감소시켜 경량화 8
+  patch_size: 8              # CIFAR-100은 이미지가 작으므로 작은 패치 크기 사용 4
   num_classes: 100           # CIFAR-100의 클래스 수
 
 optimizer:
   type: "AdamW"              # AdamW로 변경하여 weight decay 최적화
-  lr: 0.001                  # 학습률을 조금 높임
+  lr: 0.0005                  # 학습률을 조금 높임 -> 0.0005 낮춤
   weight_decay: 0.05         # weight decay 값 소폭 증가
 
 train:
-  batch_size: 32             # 메모리 관리 및 성능을 위한 배치 크기 감소
-  epochs: 50                # 적당한 에포크 수로 줄임
+  batch_size: 64             # 메모리 관리 및 성능을 위한 배치 크기 감소 32
+  epochs: 30                # 적당한 에포크 수로 줄임 50
   device: "cuda"             # GPU 사용
-  save_every: 50             # 에포크마다 모델 체크포인트 저장
+  save_every: 30             # 에포크마다 모델 체크포인트 저장
 
 data:
   root: "./data"
-  num_workers: 2             # 작업자 수를 2로 줄여 I/O 리소스 절약
+  num_workers: 4             # 작업자 수를 2로 줄여 I/O 리소스 절약 2 -> 4
   augmentations:
     - "RandomCrop"
     - "RandomHorizontalFlip"
     - "ColorJitter"
     - "RandomRotation"       # 추가적인 데이터 증강을 통해 학습 다양성 확보
+    - "Cutout"               # 새로운 데이터 증강 기법
+    - "Mixup"                # 새로운 데이터 증강 기법
 
 logging:
   log_dir: "./logs"
