@@ -5,6 +5,7 @@ model:
   depth: 12                   # Transformer 블록의 층 수를 감소시켜 경량화 8
   patch_size: 8              # CIFAR-100은 이미지가 작으므로 작은 패치 크기 사용 4
   num_classes: 100           # CIFAR-100의 클래스 수
+  dropout_rate: 0.2          # 과적합 방지를 위한 dropout 추가
 
 optimizer:
   type: "AdamW"              # AdamW로 변경하여 weight decay 최적화
