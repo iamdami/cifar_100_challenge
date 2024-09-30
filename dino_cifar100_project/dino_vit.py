@@ -16,20 +16,20 @@
 #         out = self.head(features)
 #         return out
 
-
 import torch
 import torch.nn as nn
 from torchvision.models import vit_b_16
 
 class DINO_ViT(nn.Module):
-    def __init__(self, hidden_dim, num_heads, depth, patch_size, num_classes):
+    def __init__(self, hidden_dim, num_heads, depth, patch_size, num_classes, dropout_rate=0.2):
         super(DINO_ViT, self).__init__()
-        self.backbone = vit_b_16(pretrained=False)
+        self.backbone = vit_b_16(pretrained=True)
         self.backbone.heads = nn.Identity()  # Remove the default classification head
-        self.head = nn.Linear(768, num_classes)  # 768은 ViT-B/16 모델의 출력 차원입니다
+        self.dropout = nn.Dropout(dropout_rate)  # Dropout 추가
+        self.head = nn.Linear(768, num_classes)  # 768은 ViT-B/16 모델의 출력 차원
     
     def forward(self, x):
         features = self.backbone(x)
+        features = self.dropout(features)  # Dropout 적용
         out = self.head(features)
         return out
-
