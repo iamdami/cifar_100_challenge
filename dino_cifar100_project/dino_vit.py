@@ -24,7 +24,7 @@ from torchvision.models import vit_b_16
 class DINO_ViT(nn.Module):
     def __init__(self, hidden_dim, num_heads, depth, patch_size, num_classes):
         super(DINO_ViT, self).__init__()
-        self.backbone = vit_b_16(pretrained=True)
+        self.backbone = vit_b_16(pretrained=False)
         self.backbone.heads = nn.Identity()  # Remove the default classification head
         self.head = nn.Linear(768, num_classes)  # 768은 ViT-B/16 모델의 출력 차원입니다
     
