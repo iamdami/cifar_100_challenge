@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from models.resnet_cnn import ResNetWithCNN
+from models.resnet_cnn import ResNetWithEfficientNet
 from datasets import get_dataloaders
 import os
 
@@ -57,7 +57,8 @@ def train_model(config):
     train_loader, val_loader = get_dataloaders(config)
     
     # 모델 설정
-    model = ResNetWithCNN(num_classes=config['model']['num_classes'], pretrained=config['model']['pretrained']).to(device)
+    model = ResNetWithEfficientNet(num_classes=config['model']['num_classes'], pretrained=False).to(device)
+
     
     # 옵티마이저 설정
     optimizer = optim.AdamW(model.parameters(), lr=config['optimizer']['lr'], weight_decay=config['optimizer']['weight_decay'])
