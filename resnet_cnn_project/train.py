@@ -2,21 +2,15 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import os
-import matplotlib.pyplot as plt
 from models.resnet_cnn import ResNetWithEfficientNet
 from datasets import get_dataloaders
-from sklearn.metrics import precision_recall_curve
 
-# Loss 기록 리스트
+# Loss 및 정확도 기록 리스트
 train_loss_history = []
 val_loss_history = []
 top1_acc_history = []
 top5_acc_history = []
 superclass_acc_history = []
-
-# PR Curve를 위한 리스트
-precision_list = []
-recall_list = []
 
 # Top-k 정확도 함수
 def top_k_accuracy(output, target, k=5):
@@ -28,7 +22,7 @@ def top_k_accuracy(output, target, k=5):
         top_k_acc = correct[:k].reshape(-1).float().sum(0, keepdim=True).item()
         return top_k_acc
 
-# Superclass 매핑 정의
+# CIFAR-100의 Superclass 매핑
 superclass_mapping = {
     0: "aquatic mammals", 1: "aquatic mammals", 2: "aquatic mammals", 3: "aquatic mammals", 4: "aquatic mammals",
     5: "fish", 6: "fish", 7: "fish", 8: "fish", 9: "fish",
@@ -52,7 +46,6 @@ superclass_mapping = {
     95: "vehicles 2", 96: "vehicles 2", 97: "vehicles 2", 98: "vehicles 2", 99: "vehicles 2"
 }
 
-# Superclass 정확도 계산 함수
 def superclass_accuracy(output, target):
     with torch.no_grad():
         pred_super = [superclass_mapping[p.item()] for p in torch.argmax(output, dim=1)]
@@ -60,55 +53,15 @@ def superclass_accuracy(output, target):
         correct_super = sum(p == t for p, t in zip(pred_super, target_super))
         return correct_super
 
-# CutMix 함수 정의
-def cutmix(data, targets, alpha=1.0):
-    indices = torch.randperm(data.size(0))
-    shuffled_data = data[indices]
-    shuffled_targets = targets[indices]
-
-    lam = np.random.beta(alpha, alpha)
-    bbx1, bby1, bbx2, bby2 = rand_bbox(data.size(), lam)
-    
-    new_data = data.clone()
-    new_data[:, :, bbx1:bbx2, bby1:bby2] = shuffled_data[:, :, bbx1:bbx2, bby1:bby2]
-    
-    lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (data.size(-1) * data.size(-2)))
-    
-    return new_data, targets, shuffled_targets, lam
-
-# 랜덤 박스 생성
-def rand_bbox(size, lam):
-    W = size[2]
-    H = size[3]
-    cut_rat = np.sqrt(1. - lam)
-    cut_w = np.int(W * cut_rat)
-    cut_h = np.int(H * cut_rat)
-
-    cx = np.random.randint(W)
-    cy = np.random.randint(H)
-
-    bbx1 = np.clip(cx - cut_w // 2, 0, W)
-    bby1 = np.clip(cy - cut_h // 2, 0, H)
-    bbx2 = np.clip(cx + cut_w // 2, 0, W)
-    bby2 = np.clip(cy + cut_h // 2, 0, H)
-
-    return bbx1, bby1, bbx2, bby2
-
-def train_one_epoch(model, train_loader, criterion, optimizer, device, use_cutmix=False, alpha=1.0):
+def train_one_epoch(model, train_loader, criterion, optimizer, device):
     model.train()
     running_loss = 0.0
     for i, (inputs, labels) in enumerate(train_loader):
         inputs, labels = inputs.to(device), labels.to(device)
-
-        if use_cutmix:
-            inputs, labels_a, labels_b, lam = cutmix(inputs, labels, alpha)
-            outputs = model(inputs)
-            loss = lam * criterion(outputs, labels_a) + (1 - lam) * criterion(outputs, labels_b)
-        else:
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-
+        
         optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
         
@@ -153,28 +106,13 @@ def validate(model, val_loader, criterion, device):
     print(f'Top 5 Accuracy: {top5_accuracy:.4f}')
     print(f'Superclass Accuracy: {superclass_acc:.4f}')
     
+    # 로그 기록
+    train_loss_history.append(val_loss)
+    top1_acc_history.append(top1_accuracy)
+    top5_acc_history.append(top5_accuracy)
+    superclass_acc_history.append(superclass_acc)
+
     return val_loss, top1_accuracy, top5_accuracy, superclass_acc
-
-def plot_loss(train_loss, val_loss):
-    plt.figure(figsize=(10, 5))
-    plt.plot(train_loss, label="Training Loss")
-    plt.plot(val_loss, label="Validation Loss")
-    plt.title("Loss Over Time")
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend()
-    plt.show()
-
-def plot_acc(top1_acc, top5_acc, superclass_acc):
-    plt.figure(figsize=(10, 5))
-    plt.plot(top1_acc, label="Top-1 Accuracy")
-    plt.plot(top5_acc, label="Top-5 Accuracy")
-    plt.plot(superclass_acc, label="Superclass Accuracy")
-    plt.title("Accuracy Over Time")
-    plt.xlabel("Epochs")
-    plt.ylabel("Accuracy")
-    plt.legend()
-    plt.show()
 
 def train_model(config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -191,30 +129,31 @@ def train_model(config):
     # 손실 함수
     criterion = torch.nn.CrossEntropyLoss()
 
+    # 체크포인트 경로 설정
+    checkpoint_dir = "./checkpoints"
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+    
     # 학습 시작
     for epoch in range(1, config['train']['epochs'] + 1):
         print(f'Epoch {epoch}/{config["train"]["epochs"]}')
-        train_one_epoch(model, train_loader, criterion, optimizer, device, use_cutmix=True, alpha=1.0)
+        train_one_epoch(model, train_loader, criterion, optimizer, device)
         
         val_loss, top1_accuracy, top5_accuracy, superclass_acc = validate(model, val_loader, criterion, device)
         
-        # Loss 및 정확도 기록
-        train_loss_history.append(val_loss)
-        val_loss_history.append(val_loss)
-        top1_acc_history.append(top1_accuracy)
-        top5_acc_history.append(top5_accuracy)
-        superclass_acc_history.append(superclass_acc)
-
+        print(f'Epoch {epoch}/{config["train"]["epochs"]} Results:')
+        print(f'Top-1 Accuracy: {top1_accuracy:.4f}')
+        print(f'Top-5 Accuracy: {top5_accuracy:.4f}')
+        print(f'Superclass Accuracy: {superclass_acc:.4f}')
+        
         if epoch % config['train']['save_every'] == 0:
-            checkpoint_path = os.path.join("./checkpoints", f'checkpoint_epoch_{epoch}.pth')
+            checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint_epoch_{epoch}.pth')
             save_checkpoint(model, optimizer, epoch, checkpoint_path)
-
-    # Loss와 정확도 시각화
-    plot_loss(train_loss_history, val_loss_history)
-    plot_acc(top1_acc_history, top5_acc_history, superclass_acc_history)
+    
     print("Training Complete!")
 
 def save_checkpoint(model, optimizer, epoch, filepath):
+    print(f'Saving checkpoint at epoch {epoch}')
     torch.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
