@@ -48,7 +48,7 @@ def plot_accuracy(epochs, top1_acc, top5_acc, superclass_acc):
     plt.show()
 
 if __name__ == "__main__":
-    log_file = "./logs/train_output.log"  # 학습 로그 파일
+    log_file = "./resnet_efficientnet_train_output.log"  # 학습 로그 파일
 
     # 데이터 로드
     epochs, train_loss, top1_acc, top5_acc, superclass_acc = load_log_data(log_file)
