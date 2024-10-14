@@ -2,28 +2,34 @@ model:
   backbone: "resnet18"
   cnn_model: "efficientnet_b0"
   num_classes: 100
-  pretrained: false
+  pretrained: false 
 
 train:
-  batch_size: 64
-  epochs: 50
+  batch_size: 64 
+  epochs: 200
   device: "cuda"
   save_every: 10
 
 optimizer:
   type: "AdamW"
-  lr: 0.001
-  weight_decay: 0.0001
+  lr: 0.001 
+  weight_decay: 0.0005 
 
 data:
   root: "./data"
-  num_workers: 4
+  num_workers: 8
   augmentations:
     - "RandomCrop"
     - "RandomHorizontalFlip"
     - "ColorJitter"
-    # - "RandomRotation"
+    - "RandomRotation" 
+    - "CutMix"
 
 logging:
   log_dir: "./logs"
   log_interval: 100
+
+scheduler:
+  type: "CosineAnnealingLR" 
+  T_max: 200
+  eta_min: 1e-6  
