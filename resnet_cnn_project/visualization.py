@@ -22,8 +22,12 @@ def load_log_data(log_file):
                 top5_acc.append(float(line.split(":")[1].strip()))
             if 'Superclass Accuracy' in line:
                 superclass_acc.append(float(line.split(":")[1].strip()))
+
+    # 데이터의 길이가 맞지 않으면 조정
+    min_length = min(len(epochs), len(train_loss), len(top1_acc), len(top5_acc), len(superclass_acc))
     
-    return epochs, train_loss, top1_acc, top5_acc, superclass_acc
+    return epochs[:min_length], train_loss[:min_length], top1_acc[:min_length], top5_acc[:min_length], superclass_acc[:min_length]
+
 
 # Loss 시각화
 def plot_loss(epochs, train_loss):
