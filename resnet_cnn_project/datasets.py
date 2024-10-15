@@ -3,7 +3,6 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
 def get_dataloaders(config):
-    # 데이터 전처리 및 augmentations 적용
     transform_train = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
