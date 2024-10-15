@@ -1,62 +1,62 @@
 import matplotlib.pyplot as plt
+import re
 
-# 로그 파일에서 Loss 및 Accuracy 불러오기
-def load_log_data(log_file):
+def extract_data_from_log(log_file_path):
     epochs = []
     train_loss = []
+    val_loss = []
     top1_acc = []
     top5_acc = []
     superclass_acc = []
 
-    with open(log_file, 'r') as f:
-        for line in f:
-            if 'Epoch' in line and 'Results' in line:
-                parts = line.strip().split()
-                epoch_num = int(parts[1].split('/')[0])
-                epochs.append(epoch_num)
-            if 'Validation Loss' in line:
-                train_loss.append(float(line.split(":")[1].strip()))
-            if 'Top-1 Accuracy' in line:
-                top1_acc.append(float(line.split(":")[1].strip()))
-            if 'Top-5 Accuracy' in line:
-                top5_acc.append(float(line.split(":")[1].strip()))
-            if 'Superclass Accuracy' in line:
-                superclass_acc.append(float(line.split(":")[1].strip()))
+    with open(log_file_path, 'r') as log_file:
+        for line in log_file:
+            if "Epoch" in line and "Results" not in line:
+                epoch = int(re.search(r"Epoch (\d+)/", line).group(1))
+                epochs.append(epoch)
+            elif "Training Loss" in line:
+                train_loss.append(float(re.search(r"Training Loss: ([\d.]+)", line).group(1)))
+            elif "Validation Loss" in line:
+                val_loss.append(float(re.search(r"Validation Loss: ([\d.]+)", line).group(1)))
+            elif "Top-1 Accuracy" in line:
+                top1_acc.append(float(re.search(r"Top-1 Accuracy: ([\d.]+)", line).group(1)))
+            elif "Top-5 Accuracy" in line:
+                top5_acc.append(float(re.search(r"Top-5 Accuracy: ([\d.]+)", line).group(1)))
+            elif "Superclass Accuracy" in line:
+                superclass_acc.append(float(re.search(r"Superclass Accuracy: ([\d.]+)", line).group(1)))
 
-    # 데이터의 길이가 맞지 않으면 조정
-    min_length = min(len(epochs), len(train_loss), len(top1_acc), len(top5_acc), len(superclass_acc))
-    
-    return epochs[:min_length], train_loss[:min_length], top1_acc[:min_length], top5_acc[:min_length], superclass_acc[:min_length]
+    return epochs, train_loss, val_loss, top1_acc, top5_acc, superclass_acc
 
-
-# Loss 시각화
-def plot_loss(epochs, train_loss):
+def plot_loss(epochs, train_loss, val_loss):
     plt.figure(figsize=(10, 5))
-    plt.plot(epochs, train_loss, label="Validation Loss")
+    plt.plot(epochs, train_loss[:len(epochs)], label="Training Loss")
+    plt.plot(epochs, val_loss[:len(epochs)], label="Validation Loss")
     plt.title("Loss Over Epochs")
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
     plt.legend()
-    plt.show()
+    plt.savefig("loss_over_epochs.png")
+    plt.close()
 
-# Accuracy 시각화
 def plot_accuracy(epochs, top1_acc, top5_acc, superclass_acc):
     plt.figure(figsize=(10, 5))
-    plt.plot(epochs, top1_acc, label="Top 1 Accuracy")
-    plt.plot(epochs, top5_acc, label="Top 5 Accuracy")
-    plt.plot(epochs, superclass_acc, label="Superclass Accuracy")
+    plt.plot(epochs, top1_acc[:len(epochs)], label="Top 1 Accuracy")
+    plt.plot(epochs, top5_acc[:len(epochs)], label="Top 5 Accuracy")
+    plt.plot(epochs, superclass_acc[:len(epochs)], label="Superclass Accuracy")
     plt.title("Accuracy Over Epochs")
     plt.xlabel("Epochs")
     plt.ylabel("Accuracy")
     plt.legend()
-    plt.show()
+    plt.savefig("accuracy_over_epochs.png")
+    plt.close()
 
 if __name__ == "__main__":
-    log_file = "./resnet_efficientnet_train_output.log"  # 학습 로그 파일
+    log_file_path = './resnet_efficientnet_train_output.log'
 
-    # 데이터 로드
-    epochs, train_loss, top1_acc, top5_acc, superclass_acc = load_log_data(log_file)
+    epochs, train_loss, val_loss, top1_acc, top5_acc, superclass_acc = extract_data_from_log(log_file_path)
 
-    # 시각화
-    plot_loss(epochs, train_loss)
-    plot_accuracy(epochs, top1_acc, top5_acc, superclass_acc)
+    if train_loss and val_loss:
+        plot_loss(epochs, train_loss, val_loss)
+        plot_accuracy(epochs, top1_acc, top5_acc, superclass_acc)
+    else:
+        print("No data found in the log file.")
