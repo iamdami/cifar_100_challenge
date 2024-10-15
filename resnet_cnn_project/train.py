@@ -5,6 +5,58 @@ import os
 from models.resnet_cnn import ResNetWithEfficientNet
 from datasets import get_dataloaders
 
+class EarlyStopping:
+    def __init__(self, patience=20, delta=0):
+        self.patience = patience
+        self.delta = delta
+        self.best_loss = None
+        self.counter = 0
+        self.early_stop = False
+
+    def __call__(self, val_loss):
+        if self.best_loss is None:
+            self.best_loss = val_loss
+        elif val_loss > self.best_loss - self.delta:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_loss = val_loss
+            self.counter = 0
+
+def cutmix_data(x, y, alpha=1.0):
+    '''Returns mixed inputs, pairs of targets, and lambda'''
+    lam = np.random.beta(alpha, alpha)
+    batch_size = x.size()[0]
+    index = torch.randperm(batch_size).to(x.device)
+
+    target_a = y
+    target_b = y[index]
+    
+    bbx1, bby1, bbx2, bby2 = rand_bbox(x.size(), lam)
+    x[:, :, bbx1:bbx2, bby1:bby2] = x[index, :, bbx1:bbx2, bby1:bby2]
+
+    return x, target_a, target_b, lam
+
+# Random bounding box 생성 함수
+def rand_bbox(size, lam):
+    W = size[2]
+    H = size[3]
+    cut_rat = np.sqrt(1. - lam)
+    cut_w = np.int(W * cut_rat)
+    cut_h = np.int(H * cut_rat)
+
+    # 랜덤 좌표 생성
+    cx = np.random.randint(W)
+    cy = np.random.randint(H)
+
+    bbx1 = np.clip(cx - cut_w // 2, 0, W)
+    bby1 = np.clip(cy - cut_h // 2, 0, H)
+    bbx2 = np.clip(cx + cut_w // 2, 0, W)
+    bby2 = np.clip(cy + cut_h // 2, 0, H)
+
+    return bbx1, bby1, bbx2, bby2
+
 # Loss 및 정확도 기록 리스트
 train_loss_history = []
 val_loss_history = []
@@ -12,7 +64,6 @@ top1_acc_history = []
 top5_acc_history = []
 superclass_acc_history = []
 
-# Top-k 정확도 함수
 def top_k_accuracy(output, target, k=5):
     with torch.no_grad():
         max_k = min(k, output.size(1))
@@ -22,7 +73,6 @@ def top_k_accuracy(output, target, k=5):
         top_k_acc = correct[:k].reshape(-1).float().sum(0, keepdim=True).item()
         return top_k_acc
 
-# CIFAR-100의 Superclass 매핑
 superclass_mapping = {
     0: "aquatic mammals", 1: "aquatic mammals", 2: "aquatic mammals", 3: "aquatic mammals", 4: "aquatic mammals",
     5: "fish", 6: "fish", 7: "fish", 8: "fish", 9: "fish",
@@ -53,22 +103,37 @@ def superclass_accuracy(output, target):
         correct_super = sum(p == t for p, t in zip(pred_super, target_super))
         return correct_super
 
-def train_one_epoch(model, train_loader, criterion, optimizer, device):
+def train_one_epoch(model, train_loader, criterion, optimizer, device, use_cutmix=True, alpha=1.0):
     model.train()
     running_loss = 0.0
+    total_loss = 0.0
+    total_samples = 0
+    
     for i, (inputs, labels) in enumerate(train_loader):
         inputs, labels = inputs.to(device), labels.to(device)
-        
+
         optimizer.zero_grad()
-        outputs = model(inputs)
-        loss = criterion(outputs, labels)
+
+        if use_cutmix:
+            inputs, targets_a, targets_b, lam = cutmix_data(inputs, labels, alpha)
+            outputs = model(inputs)
+            loss = lam * criterion(outputs, targets_a) + (1 - lam) * criterion(outputs, targets_b)
+        else:
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+
         loss.backward()
         optimizer.step()
         
         running_loss += loss.item()
+        total_loss += loss.item() * inputs.size(0)
+        total_samples += inputs.size(0)
+        
         if i % 100 == 99:
             print(f'[{i+1}] loss: {running_loss / 100:.3f}')
             running_loss = 0.0
+    
+    return total_loss / total_samples
 
 def validate(model, val_loader, criterion, device):
     model.eval()
@@ -83,7 +148,7 @@ def validate(model, val_loader, criterion, device):
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             loss = criterion(outputs, labels)
-            val_loss += loss.item()
+            val_loss += loss.item() * inputs.size(0)
             
             # Top-1 정확도
             _, predicted = torch.max(outputs, 1)
@@ -101,56 +166,67 @@ def validate(model, val_loader, criterion, device):
     top5_accuracy = correct_top5 / total
     superclass_acc = correct_superclass / total
 
-    print(f'Validation Loss: {val_loss / len(val_loader):.4f}')
+    print(f'Validation Loss: {val_loss / total:.4f}')
     print(f'Top 1 Accuracy: {top1_accuracy:.4f}')
     print(f'Top 5 Accuracy: {top5_accuracy:.4f}')
     print(f'Superclass Accuracy: {superclass_acc:.4f}')
     
-    # 로그 기록
-    train_loss_history.append(val_loss)
-    top1_acc_history.append(top1_accuracy)
-    top5_acc_history.append(top5_accuracy)
-    superclass_acc_history.append(superclass_acc)
-
-    return val_loss, top1_accuracy, top5_accuracy, superclass_acc
+    return val_loss / total, top1_accuracy, top5_accuracy, superclass_acc
 
 def train_model(config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    # 데이터 로드
     train_loader, val_loader = get_dataloaders(config)
-    
-    # 모델 설정
-    model = ResNetWithEfficientNet(num_classes=config['model']['num_classes'], pretrained=False).to(device)
 
-    # 옵티마이저 설정
+    # 로그 파일 생성
+    log_file = open(config['logging']['log_dir'] + "/resnet_efficientnet_train_output.log", "a")
+    
+    # 모델 설정 (Dropout 추가)
+    model = ResNetWithEfficientNet(num_classes=config['model']['num_classes'], pretrained=True, dropout_rate=0.3).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=config['optimizer']['lr'], weight_decay=config['optimizer']['weight_decay'])
-    
-    # 손실 함수
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
 
-    # 체크포인트 경로 설정
-    checkpoint_dir = "./checkpoints"
-    if not os.path.exists(checkpoint_dir):
-        os.makedirs(checkpoint_dir)
+    # Early Stopping 설정
+    early_stopping = EarlyStopping(patience=10, delta=0.01)
     
-    # 학습 시작
     for epoch in range(1, config['train']['epochs'] + 1):
         print(f'Epoch {epoch}/{config["train"]["epochs"]}')
-        train_one_epoch(model, train_loader, criterion, optimizer, device)
+        log_file.write(f'Epoch {epoch}/{config["train"]["epochs"]}\n')
+        
+        train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
         
         val_loss, top1_accuracy, top5_accuracy, superclass_acc = validate(model, val_loader, criterion, device)
-        
+
+        # 기록 저장
+        train_loss_history.append(train_loss)
+        val_loss_history.append(val_loss)
+        top1_acc_history.append(top1_accuracy)
+        top5_acc_history.append(top5_accuracy)
+        superclass_acc_history.append(superclass_acc)
+
         print(f'Epoch {epoch}/{config["train"]["epochs"]} Results:')
         print(f'Top-1 Accuracy: {top1_accuracy:.4f}')
         print(f'Top-5 Accuracy: {top5_accuracy:.4f}')
         print(f'Superclass Accuracy: {superclass_acc:.4f}')
         
+        log_file.write(f'Training Loss: {train_loss:.4f}\n')
+        log_file.write(f'Validation Loss: {val_loss:.4f}\n')
+        log_file.write(f'Top-1 Accuracy: {top1_accuracy:.4f}\n')
+        log_file.write(f'Top-5 Accuracy: {top5_accuracy:.4f}\n')
+        log_file.write(f'Superclass Accuracy: {superclass_acc:.4f}\n')
+
+        if early_stopping(val_loss):
+            print("Early stopping triggered")
+            log_file.write("Early stopping triggered\n")
+            break
+
         if epoch % config['train']['save_every'] == 0:
-            checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint_epoch_{epoch}.pth')
+            checkpoint_path = os.path.join("./checkpoints", f'checkpoint_epoch_{epoch}.pth')
             save_checkpoint(model, optimizer, epoch, checkpoint_path)
     
     print("Training Complete!")
+    log_file.write("Training Complete!\n")
+    log_file.close()
+
 
 def save_checkpoint(model, optimizer, epoch, filepath):
     print(f'Saving checkpoint at epoch {epoch}')
