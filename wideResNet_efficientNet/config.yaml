@@ -1,0 +1,23 @@
+model:
+  num_classes: 100
+
+train:
+  batch_size: 64
+  epochs: 200
+  save_every: 100
+
+optimizer:
+  lr: 0.001
+  weight_decay: 0.0005
+
+scheduler:
+  T_max: 200
+  eta_min: 1e-6
+
+data:
+  root: "./data"
+  num_workers: 8
+
+logging:
+  log_dir: "./logs"
+  log_interval: 100
