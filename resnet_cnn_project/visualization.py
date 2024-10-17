@@ -29,8 +29,8 @@ def extract_data_from_log(log_file_path):
 
 def plot_loss(epochs, train_loss, val_loss):
     plt.figure(figsize=(10, 5))
-    plt.plot(epochs, train_loss[:len(epochs)], label="Training Loss")
-    plt.plot(epochs, val_loss[:len(epochs)], label="Validation Loss")
+    plt.plot(epochs[:len(train_loss)], train_loss, label="Training Loss")  # epochs 길이 조정
+    plt.plot(epochs[:len(val_loss)], val_loss, label="Validation Loss")  # epochs 길이 조정
     plt.title("Loss Over Epochs")
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
@@ -40,9 +40,9 @@ def plot_loss(epochs, train_loss, val_loss):
 
 def plot_accuracy(epochs, top1_acc, top5_acc, superclass_acc):
     plt.figure(figsize=(10, 5))
-    plt.plot(epochs, top1_acc[:len(epochs)], label="Top 1 Accuracy")
-    plt.plot(epochs, top5_acc[:len(epochs)], label="Top 5 Accuracy")
-    plt.plot(epochs, superclass_acc[:len(epochs)], label="Superclass Accuracy")
+    plt.plot(epochs[:len(top1_acc)], top1_acc, label="Top 1 Accuracy")  # epochs 길이 조정
+    plt.plot(epochs[:len(top5_acc)], top5_acc, label="Top 5 Accuracy")  # epochs 길이 조정
+    plt.plot(epochs[:len(superclass_acc)], superclass_acc, label="Superclass Accuracy")  # epochs 길이 조정
     plt.title("Accuracy Over Epochs")
     plt.xlabel("Epochs")
     plt.ylabel("Accuracy")
@@ -50,8 +50,9 @@ def plot_accuracy(epochs, top1_acc, top5_acc, superclass_acc):
     plt.savefig("accuracy_over_epochs.png")
     plt.close()
 
+
 if __name__ == "__main__":
-    log_file_path = './resnet_efficientnet_train_output.log'
+    log_file_path = './logs/resnet_efficientnet_train_output.log'
 
     epochs, train_loss, val_loss, top1_acc, top5_acc, superclass_acc = extract_data_from_log(log_file_path)
 
