@@ -29,14 +29,16 @@ def extract_data_from_log(log_file_path):
 
 def plot_loss(epochs, train_loss, val_loss):
     plt.figure(figsize=(10, 5))
-    plt.plot(epochs, train_loss[:len(epochs)], label="Training Loss")
-    plt.plot(epochs, val_loss[:len(epochs)], label="Validation Loss")
+    min_len = min(len(epochs), len(train_loss), len(val_loss))
+    plt.plot(epochs[:min_len], train_loss[:min_len], label="Training Loss")
+    plt.plot(epochs[:min_len], val_loss[:min_len], label="Validation Loss")
     plt.title("Loss Over Epochs")
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
     plt.legend()
-    plt.savefig("loss_over_epochs.png")
+    plt.savefig("loss_over_epochs1.png")
     plt.close()
+
 
 def plot_accuracy(epochs, top1_acc, top5_acc, superclass_acc):
     plt.figure(figsize=(10, 5))
@@ -47,11 +49,11 @@ def plot_accuracy(epochs, top1_acc, top5_acc, superclass_acc):
     plt.xlabel("Epochs")
     plt.ylabel("Accuracy")
     plt.legend()
-    plt.savefig("accuracy_over_epochs.png")
+    plt.savefig("accuracy_over_epochs1.png")
     plt.close()
 
 if __name__ == "__main__":
-    log_file_path = './logs/wideResNet_efficientNet_train_output.log'  # 경로 수정
+    log_file_path = './logs/wideResNet_efficientNet_train_output1.log'  # 경로 수정
 
     # 로그 파일에서 데이터를 추출
     epochs, train_loss, val_loss, top1_acc, top5_acc, superclass_acc = extract_data_from_log(log_file_path)
