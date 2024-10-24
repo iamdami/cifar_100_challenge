@@ -2,7 +2,7 @@ model:
   num_classes: 100
 
 train:
-  batch_size: 64
+  batch_size: 32
   epochs: 200
   save_every: 100
 
