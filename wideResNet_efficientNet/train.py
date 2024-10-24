@@ -8,7 +8,7 @@ from datasets import get_dataloaders
 
 # EarlyStopping 클래스 정의
 class EarlyStopping:
-    def __init__(self, patience=20, delta=0):
+    def __init__(self, patience=30, delta=0):
         self.patience = patience
         self.delta = delta
         self.best_loss = None
@@ -177,13 +177,13 @@ def train_model(config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_loader, val_loader = get_dataloaders(config)
 
-    log_file = open(config['logging']['log_dir'] + "/wideResNet_efficientNet_train_output.log", "a")
+    log_file = open(config['logging']['log_dir'] + "/wideResNet_efficientNet_train_output1.log", "a")
     
     model = EfficientNetWideResNet(num_classes=config['model']['num_classes'], pretrained=True).to(device)
     optimizer = optim.SGD(model.parameters(), lr=config['optimizer']['lr'], weight_decay=config['optimizer']['weight_decay'])
     criterion = nn.CrossEntropyLoss()
 
-    early_stopping = EarlyStopping(patience=10, delta=0.01)
+    early_stopping = EarlyStopping(patience=30, delta=0.01)
     
     for epoch in range(1, config['train']['epochs'] + 1):
         print(f'Epoch {epoch}/{config["train"]["epochs"]}')
